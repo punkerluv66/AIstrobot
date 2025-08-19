@@ -1,0 +1,13 @@
+{
+  "name": "telegram-bot-app",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1",
+    "node-cron": "^4.2.1",
+    "node-telegram-bot-api": "^0.64.0",
+    "openai": "^5.11.0",
+    "pg": "^8.11.3"
+  }
+}
