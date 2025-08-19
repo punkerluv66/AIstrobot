@@ -1,7 +1,6 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-// Создаем соединение с базой данных
 const pool = new Pool({
     user: process.env.DB_USER,
     host: process.env.DB_HOST,
@@ -10,7 +9,6 @@ const pool = new Pool({
     port: process.env.DB_PORT,
 });
 
-// Функция инициализации базы данных - создает таблицы если они не существуют
 async function initDB() {
     try {
         await pool.query(`
@@ -41,13 +39,12 @@ async function initDB() {
 
 async function saveUserData(userId, birthDate, birthTime, gender, name) {
     try {
-        // Проверяем, есть ли уже такая запись с точно такими же данными
         const existingData = await pool.query(
             'SELECT * FROM users WHERE user_id = $1 AND birth_date = $2 AND birth_time = $3 AND gender = $4 AND name = $5 ORDER BY created_at DESC LIMIT 1',
             [userId, birthDate, birthTime, gender, name]
         );
 
-        // Если запись с такими точно данными уже существует и была создана недавно (в течение 5 минут), не дублируем
+
         if (existingData.rows.length > 0) {
             const existingRecord = existingData.rows[0];
             const createdAt = new Date(existingRecord.created_at);
@@ -60,7 +57,6 @@ async function saveUserData(userId, birthDate, birthTime, gender, name) {
             }
         }
 
-        // Если такой записи нет или она старая, создаем новую
         const result = await pool.query(
             'INSERT INTO users (user_id, birth_date, birth_time, gender, name) VALUES ($1, $2, $3, $4, $5) RETURNING *',
             [userId, birthDate, birthTime, gender, name]
@@ -132,7 +128,6 @@ async function updateUserData(userId, birthDate, birthTime, gender, name) {
         throw error;
     }
 }
-// Экспортируем все функции
 module.exports = {
     initDB,
     saveUserData,

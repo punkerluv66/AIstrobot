@@ -2,11 +2,9 @@ const axios = require('axios');
 const db = require('../db/index');
 require('dotenv').config();
 
-// Изменяем на модель, которая поддерживает запросы текста
 const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Максимальная длина сообщения для Telegram (4096 символов)
 const MAX_MESSAGE_LENGTH = 4000;
 
 async function uploadUserData(userId) {
@@ -21,7 +19,6 @@ async function uploadUserData(userId) {
 
         const formattedData = formatDataForUpload(userData);
         
-        // Добавляем проверку на undefined значения
         const name = formattedData.name || 'Пользователь';
         const birthDate = formattedData.birthDate || 'не указана';
         const birthTime = formattedData.birthTime || 'не указано';
@@ -29,7 +26,6 @@ async function uploadUserData(userId) {
         
         console.log("Форматированные данные:", { name, birthDate, birthTime, gender });
         
-        // Структурируем запрос на русском для более релевантного ответа
         const prompt = `
         Сгенерируй персональный гороскоп для человека со следующими данными:
         - Имя: ${name}
@@ -47,7 +43,6 @@ async function uploadUserData(userId) {
         
         console.log("Отправка запроса к API:", API_URL);
         
-        // Реализуем повторные попытки при ошибках
         let attempts = 0;
         const maxAttempts = 3;
         
@@ -73,55 +68,50 @@ async function uploadUserData(userId) {
                             'Content-Type': 'application/json',
                             'X-goog-api-key': GEMINI_API_KEY
                         },
-                        timeout: 60 * 1000 // 60 секунд таймаут
+                        timeout: 60 * 1000 
                     }
                 );
 
-                console.log("Получен ответ от API:", response.status);
-                console.log("Тип данных ответа:", typeof response.data);
+                console.log("API RESPONSE:", response.status);
+                console.log("TYPE OF RESPONSE:", typeof response.data);
                 
                 if (typeof response.data === 'object') {
-                    console.log("Структура ответа:", JSON.stringify(response.data).substring(0, 500) + "...");
+                    console.log("STRUCTURE OF RESPONSE:", JSON.stringify(response.data).substring(0, 500) + "...");
                 }
                 
-                // Проверяем формат ответа и обрабатываем его
                 let horoscopeText = "";
                 
                 if (Array.isArray(response.data)) {
-                    console.log("Ответ в формате массива, длина:", response.data.length);
+                    console.log("RESPONSE AS ARRAY:", response.data.length);
                     
-                    // Проверяем содержимое первого элемента массива
                     if (response.data.length > 0) {
                         const firstItem = response.data[0];
-                        console.log("Тип первого элемента:", typeof firstItem);
-                        
+                        console.log("TYPE OF FIRST ITEM:", typeof firstItem);
+
                         if (typeof firstItem === 'object' && firstItem !== null) {
                             if (firstItem.generated_text) {
                                 horoscopeText = firstItem.generated_text;
-                                console.log("Найден текст в generated_text");
+                                console.log("TEXT FOUND in generated_text");
                             } else {
-                                console.log("Ключи первого элемента:", Object.keys(firstItem));
-                                // Проверяем другие возможные поля
+                                console.log("FIRST ELEMENT KEYS:", Object.keys(firstItem));
                                 const possibleFields = ['text', 'content', 'result', 'output', 'generation'];
                                 for (const field of possibleFields) {
                                     if (firstItem[field]) {
                                         horoscopeText = firstItem[field];
-                                        console.log(`Найден текст в поле ${field}`);
+                                        console.log(`TEXT FOUND in field ${field}`);
                                         break;
                                     }
                                 }
                             }
                         } else if (typeof firstItem === 'string') {
                             horoscopeText = firstItem;
-                            console.log("Первый элемент - строка");
+                            console.log("FIRST ELEMENT - STRING");
                         } else if (typeof firstItem === 'number') {
-                            // Если получен массив чисел, это эмбеддинги
-                            console.log("Получены эмбеддинги, не текстовый ответ");
+                            console.log("FIRST ELEMENT - NUMBER, ignoring");
                         }
                     }
                 }else if (response.data && typeof response.data === 'object') {
-                    console.log("Ответ в формате объекта");
-                    // Попытаемся извлечь текст из candidates[].content.parts[].text (Gemini)
+                    console.log("RESPONSE IN OBJECT FORMAT");
                     if (Array.isArray(response.data.candidates) && response.data.candidates.length > 0) {
                         for (const cand of response.data.candidates) {
                             if (cand?.content?.parts && Array.isArray(cand.content.parts)) {
@@ -131,7 +121,6 @@ async function uploadUserData(userId) {
                                     }
                                 }
                             }
-                            // fallback: cand.content.text или cand.text
                             if (!horoscopeText) {
                                 if (typeof cand.content?.text === 'string') horoscopeText = cand.content.text;
                                 else if (typeof cand.text === 'string') horoscopeText = cand.text;
@@ -139,7 +128,6 @@ async function uploadUserData(userId) {
                             if (horoscopeText) break;
                         }
                     }
-                    // другие возможные поля с текстом
                     if (!horoscopeText) {
                         if (response.data.generated_text) horoscopeText = response.data.generated_text;
                         else if (response.data.text) horoscopeText = response.data.text;
@@ -147,54 +135,49 @@ async function uploadUserData(userId) {
                         else if (response.data.choices && response.data.choices[0]) {
                             horoscopeText = response.data.choices[0].text || response.data.choices[0].message?.content;
                         } else {
-                            console.log("Неизвестный формат объекта, ключи:", Object.keys(response.data));
+                            console.log("UNKNOWN OBJECT FORMAT, KEYS:", Object.keys(response.data));
                             horoscopeText = "Не удалось сгенерировать гороскоп с текущими настройками API.";
                         }
                     }
                 } else if (typeof response.data === 'string') {
-                    console.log("Ответ в текстовом формате");
+                    console.log("RESPONSE IN TEXT FORMAT");
                     horoscopeText = response.data;
                 } else {
-                    console.log("Неизвестный формат ответа:", typeof response.data);
+                    console.log("UNKNOWN RESPONSE FORMAT:", typeof response.data);
                     horoscopeText = "Не удалось получить корректный ответ от сервиса гороскопов.";
                 }
                 
-                // Ограничиваем длину сообщения для Telegram
                 if (horoscopeText.length > MAX_MESSAGE_LENGTH) {
                     console.log(`Сообщение слишком длинное (${horoscopeText.length} символов), обрезаем до ${MAX_MESSAGE_LENGTH}`);
                     horoscopeText = horoscopeText.substring(0, MAX_MESSAGE_LENGTH) + "...";
                 }
                 
-                // Если текст все еще отсутствует, используем базовый ответ
                 if (!horoscopeText || horoscopeText.trim() === "") {
                     horoscopeText = `Персональный гороскоп для ${name}:
-                    
-К сожалению, не удалось сформировать подробный гороскоп на основе предоставленных данных (дата: ${birthDate}, время: ${birthTime}).
+                                            
+                        К сожалению, не удалось сформировать подробный гороскоп на основе предоставленных данных (дата: ${birthDate}, время: ${birthTime}).
 
-Рекомендуем повторить запрос позже или обратиться к другому астрологическому сервису.`;
+                        Рекомендуем повторить запрос позже.`;
                 }
                 
                 return horoscopeText;
                 
             } catch (error) {
-                console.error(`Попытка ${attempts + 1} не удалась:`, error.message);
-                
-                // Если API возвращает, что модель загружается, ждем и пробуем снова
+                console.error(`ATTEMPT ${attempts + 1} FAILED:`, error.message);
+
                 if (error.response && error.response.status === 503) {
-                    console.log("Модель загружается, ожидаем...");
+                    console.log("MODEL IS LOADING, WAITING...");
                     await new Promise(resolve => setTimeout(resolve, 5000));
                 }
                 
                 attempts++;
                 
-                // Пауза между попытками
                 if (attempts < maxAttempts) {
                     await new Promise(resolve => setTimeout(resolve, 2000));
                 }
             }
         }
         
-        // Если все попытки неудачны, возвращаем простое сообщение
         return `Извините, ${name}, не удалось получить ваш гороскоп в данный момент. Пожалуйста, попробуйте позже.`;
     } catch (error) {
         console.error('Error generating horoscope:', error);
