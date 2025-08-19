@@ -47,7 +47,7 @@ telegram-bot-app
 
 ## Usage
 
-1. Configure the bot by editing the `src/config.js` file with your API keys and database connection strings.
+1. Configure the bot by editing the `env` file according to `env.exm` file with your API keys and database connection strings.
 
 2. Start the bot:
    ```
