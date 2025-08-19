@@ -40,11 +40,10 @@ function startBot() {
         const chatId = msg.chat.id;
         const text = msg.text;
 
-        // Подписка
+        
         if (text === 'Подписаться') {
             await db.subscribeUser(chatId);
             bot.sendMessage(chatId, 'Вы успешно подписались!');
-            // Сразу запускаем ввод данных
             userInputState[chatId] = { step: 'year' };
             bot.sendMessage(chatId, 'Введите год рождения (например, 1995):', {
                 reply_markup: { remove_keyboard: true }
@@ -52,7 +51,6 @@ function startBot() {
             return;
         }
 
-        // Ввод промокода
         if (text === 'Ввести промокод') {
             bot.sendMessage(chatId, 'Введите промокод:', startKeyboard);
             bot.once('message', (msg) => {
@@ -66,7 +64,6 @@ function startBot() {
             });
         }
 
-        // Ввод/обновление данных
         if (
             text === 'Обновить данные'
         ){
@@ -80,9 +77,9 @@ function startBot() {
         if (userInputState[chatId]) {
             const state = userInputState[chatId];
 
-            // Выбор года
+            
             if (state.step === 'year') {
-                const yearText = text.trim(); // Обрезаем пробелы только для года
+                const yearText = text.trim(); 
                 const yearNum = Number(yearText);
                 const currentYear = new Date().getFullYear();
                 if (!/^\d{4}$/.test(yearText) || yearNum < 1900 || yearNum > currentYear) {
@@ -103,18 +100,18 @@ function startBot() {
                 return;
             }
 
-            // Выбор месяца
+          
             if (state.step === 'month') {
                 const monthNames = [].concat(...MONTHS);
                 if (monthNames.includes(text)) {
                     state.month = monthNames.indexOf(text) + 1;
                     state.step = 'day';
-                    // Генерируем календарь для выбранного месяца и года (без DAYS_ROW)
+                    
                     const daysInMonth = new Date(state.year, state.month, 0).getDate();
                     let calendar = [];
                     let week = [];
                     let firstDay = new Date(state.year, state.month - 1, 1).getDay();
-                    firstDay = firstDay === 0 ? 7 : firstDay; // Sunday correction
+                    firstDay = firstDay === 0 ? 7 : firstDay; 
                     for (let i = 1; i < firstDay; i++) week.push('');
                     for (let d = 1; d <= daysInMonth; d++) {
                         week.push(String(d));
@@ -152,7 +149,7 @@ function startBot() {
                 } else {
                     bot.sendMessage(chatId, 'Пожалуйста, выберите день рождения с помощью кнопки.', {
                         reply_markup: {
-                            keyboard: calendar, // calendar из шага месяца
+                            keyboard: calendar, 
                             resize_keyboard: true,
                             one_time_keyboard: true
                         }
@@ -160,7 +157,6 @@ function startBot() {
                     return;
                 }
             }
-            // Ввод времени
             if (state.step === 'birthTime') {
                 if (text === 'Другое время') {
                     bot.sendMessage(chatId, 'Введите время рождения в формате ЧЧ:ММ:',{
@@ -207,7 +203,6 @@ function startBot() {
                 return;
             }
 
-            // Ввод пола
             if (state.step === 'gender') {
                 if (text !== 'M' && text !== 'F') {
                     bot.sendMessage(chatId, 'Выберите пол: M или F', {
@@ -229,7 +224,7 @@ function startBot() {
                 return;
             }
 
-            // Ввод имени и сохранение
+            
             if (state.step === 'name') {
                 state.name = text;
                 const birthDate = `${state.year}-${String(state.month).padStart(2, '0')}-${state.day}`;
@@ -246,7 +241,7 @@ function startBot() {
             }
         }
 
-        // Генерация гороскопа
+        
         if (text === 'Сгенерировать гороскоп') {
             const userData = await db.getUserData(chatId);
             if (!userData) {
@@ -264,7 +259,7 @@ function startBot() {
             }
         }
 
-        // Отмена подписки
+       
         if (text === 'Отменить подписку') {
             await db.unsubscribeUser(chatId);
             promoAccessUsers.delete(chatId);
