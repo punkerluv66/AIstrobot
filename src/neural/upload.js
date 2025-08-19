@@ -3,8 +3,8 @@ const db = require('../db/index');
 require('dotenv').config();
 
 // Изменяем на модель, которая поддерживает запросы текста
-const API_URL = 'https://router.huggingface.co/v1/chat/completions';
-const HF_TOKEN = process.env.HUGGINGFACE_TOKEN;
+const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // Максимальная длина сообщения для Telegram (4096 символов)
 const MAX_MESSAGE_LENGTH = 4000;
@@ -39,8 +39,10 @@ async function uploadUserData(userId) {
         
         Гороскоп должен включать:
         1. Общую характеристику личности
-        2. Прогноз на сегодны ${today}
-        3. Совет по карьере, любви и здоровью
+        2. Прогноз на сегодня ${today}
+        3. Ответ должен быть до 3500 символов, чтобы не превышать лимит Telegram
+        Не надо разделять текст на части, просто дай полный ответ
+        Также не используй символы *** или ### в начале и конце текста, просто дай текст гороскопа без форматирования.
         `;
         
         console.log("Отправка запроса к API:", API_URL);
@@ -52,11 +54,15 @@ async function uploadUserData(userId) {
         while (attempts < maxAttempts) {
             try {
                 const data = {
-                    model: "meta-llama/Meta-Llama-3-8B-Instruct", // Указываем нужную модель
-                    messages: [
-                        { role: "user", content: prompt }
-                    ],
-                    stream: false
+                    "contents": [
+                        {
+                            "parts": [
+                                {
+                                    "text": prompt
+                                }
+                            ]
+                        }
+                    ]
                 };
 
                 const response = await axios.post(
@@ -64,13 +70,13 @@ async function uploadUserData(userId) {
                     data,
                     {
                         headers: {
-                            'Authorization': `Bearer ${HF_TOKEN}`,
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'X-goog-api-key': GEMINI_API_KEY
                         },
                         timeout: 60 * 1000 // 60 секунд таймаут
                     }
                 );
-                
+
                 console.log("Получен ответ от API:", response.status);
                 console.log("Тип данных ответа:", typeof response.data);
                 
@@ -113,22 +119,37 @@ async function uploadUserData(userId) {
                             console.log("Получены эмбеддинги, не текстовый ответ");
                         }
                     }
-                } else if (response.data && typeof response.data === 'object') {
+                }else if (response.data && typeof response.data === 'object') {
                     console.log("Ответ в формате объекта");
-                    // Проверяем разные возможные поля с результатом
-                    if (response.data.generated_text) {
-                        horoscopeText = response.data.generated_text;
-                    } else if (response.data.text) {
-                        horoscopeText = response.data.text;
-                    } else if (response.data.output) {
-                        horoscopeText = response.data.output;
-                    } else if (response.data.result) {
-                        horoscopeText = response.data.result;
-                    } else if (response.data.choices && response.data.choices[0]) {
-                        horoscopeText = response.data.choices[0].text || response.data.choices[0].message?.content;
-                    } else {
-                        console.log("Неизвестный формат объекта, ключи:", Object.keys(response.data));
-                        horoscopeText = "Не удалось сгенерировать гороскоп с текущими настройками API.";
+                    // Попытаемся извлечь текст из candidates[].content.parts[].text (Gemini)
+                    if (Array.isArray(response.data.candidates) && response.data.candidates.length > 0) {
+                        for (const cand of response.data.candidates) {
+                            if (cand?.content?.parts && Array.isArray(cand.content.parts)) {
+                                for (const part of cand.content.parts) {
+                                    if (typeof part.text === 'string' && part.text.trim()) {
+                                        horoscopeText += part.text.trim() + "\n";
+                                    }
+                                }
+                            }
+                            // fallback: cand.content.text или cand.text
+                            if (!horoscopeText) {
+                                if (typeof cand.content?.text === 'string') horoscopeText = cand.content.text;
+                                else if (typeof cand.text === 'string') horoscopeText = cand.text;
+                            }
+                            if (horoscopeText) break;
+                        }
+                    }
+                    // другие возможные поля с текстом
+                    if (!horoscopeText) {
+                        if (response.data.generated_text) horoscopeText = response.data.generated_text;
+                        else if (response.data.text) horoscopeText = response.data.text;
+                        else if (response.data.output?.[0]?.content?.[0]?.text) horoscopeText = response.data.output[0].content[0].text;
+                        else if (response.data.choices && response.data.choices[0]) {
+                            horoscopeText = response.data.choices[0].text || response.data.choices[0].message?.content;
+                        } else {
+                            console.log("Неизвестный формат объекта, ключи:", Object.keys(response.data));
+                            horoscopeText = "Не удалось сгенерировать гороскоп с текущими настройками API.";
+                        }
                     }
                 } else if (typeof response.data === 'string') {
                     console.log("Ответ в текстовом формате");
